@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import DraggablePiechart from "../libraries/draggable-piechart";
 
 const CanvasPie = ()=> {
@@ -15,8 +15,10 @@ const CanvasPie = ()=> {
 
   const [data, setData] = useState(defaultData);
   const [activity, setActivity] = useState("");
-  const [hours, setHours] = useState(0);
+  const [hours, setHours] = useState("");
   const [activityHours, setActivityHours] = useState({});
+  const [error, setError] = useState("");
+
   useEffect(() => {
       setupPieChart();
   }, [data]);
@@ -122,16 +124,62 @@ const CanvasPie = ()=> {
     }
   }
 
+  const removeActivity = (activity, hours) => {
+    let tempdata = data.filter((d)=>{
+      return d.format.label != activity
+    })
+    if(tempdata[0] &&tempdata[0].format.label == "Nothing"){
+      tempdata[0].proportion = tempdata[0].proportion + hours;
+    }else{
+      tempdata[0] =
+        {
+          proportion: hours,
+          format: {
+            color: "#" + ((Math.random() * 0xffffff) << 0).toString(16),
+            label: "Nothing",
+          },
+          collapsed: false, // collapse the proportion when dragged to zero
+        }
+    }
+    setData(tempdata);
+  }
+
   const addActivity = () => {
     let tempdata = data;
+
+    if (activity.trim() === "") {
+      setError("Activity name is required.");
+      return; // Exit the function if activity is empty
+    }
+
+    if (hours <= 0) {
+      setError("Hours field cannot be empty.");
+      return; // Exit the function if hours are not positive
+    }
+
+    if (hours > tempdata[0].proportion || tempdata[0].format.label != "Nothing") {
+      setError("Hours cannot exceed more than 24 in a day.");
+      return;
+    }
+
+    setError("");
+
+
     for(let i=0;i<tempdata.length;i++){
-      tempdata[i].proportion = Number(activityHours[tempdata[i].format.label]);
+      if (tempdata[i].format.label == activity){
+        setError("Activity already exists.");
+        return;
+      }
+        tempdata[i].proportion = Number(
+          activityHours[tempdata[i].format.label]
+        );
     }
 
     if (tempdata[0].proportion - hours > 0) {
       tempdata[0].proportion = tempdata[0].proportion - hours;
-    }else{
-      tempdata.shift()
+    }
+    else{
+      tempdata.shift() //if time is 24 the first time
     }
 
     setData([
@@ -145,29 +193,56 @@ const CanvasPie = ()=> {
         collapsed: false, // collapse the proportion when dragged to zero
       },
     ]);
+    setActivity("");
+    setHours("");
   }
 
   return (
     <>
-      <div className="flex p-2">
+      <div className="flex p-2 ml-56">
         <input
-        required={true}
           type="text"
-          className="border border-black m-2 placeholder:p-2"
+          className="border border-black m-2 p-2 placeholder:p-2 rounded-md"
           placeholder="Activity"
+          value={activity}
           onChange={(e) => setActivity(e.target.value)}
         ></input>
         <input
-        required
           type="number"
-          className="border border-black m-2 placeholder:p-2"
+          value={hours}
+          className="border border-black p-2 m-2 placeholder:p-2 rounded-md"
           placeholder="Hours"
           onChange={(e) => setHours(Number(e.target.value))}
         ></input>
-        <button className="bg-blue-500 m-2 rounded-lg p-1" onClick={() => addActivity()}>Add Activity</button>
+        <button
+          className="bg-blue-500 m-2 rounded-lg p-2"
+          onClick={() => addActivity()}
+        >
+          Add Activity
+        </button>
       </div>
-      <canvas id="piechart" width="500" height="500" className="ml-56" />
-      <table id="proportions-table" className="ml-56"></table>
+      {error && <div className="text-red-500 ml-60">{error}</div>}
+      <div className="flex">
+        <div>
+          <canvas id="piechart" width="500" height="500" className="ml-56" />
+          <table id="proportions-table" className="ml-56"></table>
+        </div>
+        {data.length>1?<div className="bg-slate-200 p-2 rounded-sm">
+          <div className="bg-gray-400 p-2 rounded-sm">Remove activity</div>
+          {data.map((d) => {
+            if (d.format.label != "Nothing")
+              return (
+                <div className="p-1">
+                  <span className="font-bold text-xl">{d.format.label}</span>
+                  <span
+                    className="text-red-900"
+                    onClick={() => removeActivity(d.format.label, d.proportion)}
+                  > (-) </span>
+                </div>
+              );
+          })}
+        </div>:null}
+      </div>
     </>
   );
 }
